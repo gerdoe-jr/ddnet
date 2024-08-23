@@ -363,6 +363,8 @@ public:
 		float m_EmoticonStartFraction;
 		int m_EmoticonStartTick;
 
+		int m_InairStartTick;
+
 		bool m_Solo;
 		bool m_Jetpack;
 		bool m_CollisionDisabled;

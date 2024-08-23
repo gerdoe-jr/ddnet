@@ -1,6 +1,7 @@
 /* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
 /* If you are missing that file, acquire a complete release at teeworlds.com.                */
 
+#include <cstdlib>
 #include <engine/demo.h>
 #include <engine/graphics.h>
 #include <engine/shared/config.h>
@@ -419,9 +420,20 @@ void CPlayers::RenderPlayer(
 	bool WantOtherDir = (Player.m_Direction == -1 && Vel.x > 0) || (Player.m_Direction == 1 && Vel.x < 0);
 	bool Inactive = ClientId >= 0 && (m_pClient->m_aClients[ClientId].m_Afk || m_pClient->m_aClients[ClientId].m_Paused);
 
+	// TODO: move to somewhere gameclient gathers all info
+	if(!InAir)
+		m_pClient->m_aClients[ClientId].m_InairStartTick = 0;
+	else if(!m_pClient->m_aClients[ClientId].m_InairStartTick)
+		m_pClient->m_aClients[ClientId].m_InairStartTick = Client()->GameTick(g_Config.m_ClDummy);
+
 	// evaluate animation
 	float WalkTime = std::fmod(Position.x, 100.0f) / 100.0f;
 	float RunTime = std::fmod(Position.x, 200.0f) / 200.0f;
+
+	float VelocityStrength = length(Vel);
+	int SpeedMod = 1 + (VelocityStrength >= 25.f) + (VelocityStrength >= 50.0f);
+	float VelocityMod = VelocityStrength * SpeedMod * 50.0f;
+	float InairTime = std::fmod(((Client()->GameTick(g_Config.m_ClDummy) - m_pClient->m_aClients[ClientId].m_InairStartTick) / (float)Client()->GameTickSpeed() + Client()->GameTickTime(g_Config.m_ClDummy)) * VelocityMod, 800.0f) / 1000.0f;
 
 	// Don't do a moon walk outside the left border
 	if(WalkTime < 0)
@@ -433,7 +445,14 @@ void CPlayers::RenderPlayer(
 	State.Set(&g_pData->m_aAnimations[ANIM_BASE], 0);
 
 	if(InAir)
-		State.Add(&g_pData->m_aAnimations[ANIM_INAIR], 0, 1.0f); // TODO: some sort of time here
+	{
+		if(SpeedMod == 1)
+			State.Add(&g_pData->m_aAnimations[ANIM_INAIR], 0, 1.0f); // TODO: some sort of time here
+		else if (SpeedMod == 2)
+			State.Add(&g_pData->m_aAnimations[ANIM_INAIR_FAST], InairTime, 1.0f);
+		else
+			State.Add(&g_pData->m_aAnimations[ANIM_INAIR_EXTREME], InairTime, 1.0f);
+	}
 	else if(Stationary)
 	{
 		if(Inactive)
