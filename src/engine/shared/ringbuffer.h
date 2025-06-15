@@ -31,17 +31,17 @@ class CRingBufferBase
 
 	std::function<void(void *pCurrent)> m_PopCallback = nullptr;
 
-	CItem *NextBlock(CItem *pItem);
-	CItem *PrevBlock(CItem *pItem);
+	CItem *NextBlock(CItem *pItem) const;
+	CItem *PrevBlock(CItem *pItem) const;
 	CItem *MergeBack(CItem *pItem);
 
 protected:
 	void *Allocate(int Size);
 
-	void *Prev(void *pCurrent);
-	void *Next(void *pCurrent);
-	void *First();
-	void *Last();
+	void *Prev(void *pCurrent) const;
+	void *Next(void *pCurrent) const;
+	void *First() const;
+	void *Last() const;
 
 	void Init(void *pMemory, int Size, int Flags);
 	int PopFirst();
@@ -71,10 +71,10 @@ public:
 		});
 	}
 
-	T *Prev(T *pCurrent) { return (T *)CRingBufferBase::Prev(pCurrent); }
-	T *Next(T *pCurrent) { return (T *)CRingBufferBase::Next(pCurrent); }
-	T *First() { return (T *)CRingBufferBase::First(); }
-	T *Last() { return (T *)CRingBufferBase::Last(); }
+	T *Prev(T *pCurrent) const { return (T *)CRingBufferBase::Prev(pCurrent); }
+	T *Next(T *pCurrent) const { return (T *)CRingBufferBase::Next(pCurrent); }
+	T *First() const { return (T *)CRingBufferBase::First(); }
+	T *Last() const { return (T *)CRingBufferBase::Last(); }
 };
 
 template<typename T, int TSIZE, int TFLAGS = 0>

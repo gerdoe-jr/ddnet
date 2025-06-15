@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 
+#include <engine/shared/ringbuffer.h>
 #include <game/generated/protocol.h>
 #include <game/generated/protocol7.h>
 
@@ -113,12 +114,12 @@ public:
 
 class CSnapshotStorage
 {
+	static const int MAX_HOLDERS_AMOUNT = 151;
 public:
 	class CHolder
 	{
 	public:
-		CHolder *m_pPrev;
-		CHolder *m_pNext;
+		~CHolder();
 
 		int64_t m_Tagtime;
 		int m_Tick;
@@ -130,8 +131,8 @@ public:
 		CSnapshot *m_pAltSnap;
 	};
 
-	CHolder *m_pFirst;
-	CHolder *m_pLast;
+	CStaticRingBuffer<CHolder, MAX_HOLDERS_AMOUNT * sizeof(CHolder)> m_Holders;
+	CStaticRingBuffer<CSnapshot, MAX_HOLDERS_AMOUNT * CSnapshot::MAX_SIZE> m_Snaps;
 
 	CSnapshotStorage() { Init(); }
 	~CSnapshotStorage() { PurgeAll(); }

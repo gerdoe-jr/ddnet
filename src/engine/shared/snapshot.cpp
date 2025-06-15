@@ -609,52 +609,40 @@ int CSnapshotDelta::UnpackDelta(const CSnapshot *pFrom, CSnapshot *pTo, const vo
 	return Builder.Finish(pTo);
 }
 
+// CHolder
+
+CSnapshotStorage::CHolder::~CHolder()
+{
+	free(m_pAltSnap);
+}
+
 // CSnapshotStorage
 
 void CSnapshotStorage::Init()
 {
-	m_pFirst = nullptr;
-	m_pLast = nullptr;
+	m_Holders = {};
+	m_Snaps = {};
 }
 
 void CSnapshotStorage::PurgeAll()
 {
-	while(m_pFirst)
-	{
-		CHolder *pNext = m_pFirst->m_pNext;
-		free(m_pFirst->m_pSnap);
-		free(m_pFirst->m_pAltSnap);
-		free(m_pFirst);
-		m_pFirst = pNext;
-	}
-	m_pLast = nullptr;
+	m_Holders.Clear();
+	m_Snaps.Clear();
 }
 
 void CSnapshotStorage::PurgeUntil(int Tick)
 {
-	CHolder *pHolder = m_pFirst;
-
-	while(pHolder)
+	// iterating from old holders to new
+	while(true)
 	{
-		CHolder *pNext = pHolder->m_pNext;
-		if(pHolder->m_Tick >= Tick)
+		CHolder *pHolder = m_Holders.First();
+
+		if(!pHolder || pHolder->m_Tick >= Tick)
 			return; // no more to remove
-		free(pHolder->m_pSnap);
-		free(pHolder->m_pAltSnap);
-		free(pHolder);
 
-		// did we come to the end of the list?
-		if(!pNext)
-			break;
-
-		m_pFirst = pNext;
-		pNext->m_pPrev = nullptr;
-		pHolder = pNext;
+		m_Holders.PopFirst();
+		m_Snaps.PopFirst();
 	}
-
-	// no more snapshots in storage
-	m_pFirst = nullptr;
-	m_pLast = nullptr;
 }
 
 void CSnapshotStorage::Add(int Tick, int64_t Tagtime, size_t DataSize, const void *pData, size_t AltDataSize, const void *pAltData)
@@ -662,13 +650,13 @@ void CSnapshotStorage::Add(int Tick, int64_t Tagtime, size_t DataSize, const voi
 	dbg_assert(DataSize <= (size_t)CSnapshot::MAX_SIZE, "Snapshot data size invalid");
 	dbg_assert(AltDataSize <= (size_t)CSnapshot::MAX_SIZE, "Alt snapshot data size invalid");
 
-	CHolder *pHolder = static_cast<CHolder *>(malloc(sizeof(CHolder)));
+	CHolder *pHolder = m_Holders.Allocate(sizeof(CHolder));
 	pHolder->m_Tick = Tick;
 	pHolder->m_Tagtime = Tagtime;
-
-	pHolder->m_pSnap = static_cast<CSnapshot *>(malloc(DataSize));
-	mem_copy(pHolder->m_pSnap, pData, DataSize);
 	pHolder->m_SnapSize = DataSize;
+
+	pHolder->m_pSnap = m_Snaps.Allocate(DataSize);
+	mem_copy(pHolder->m_pSnap, pData, DataSize);
 
 	if(AltDataSize) // create alternative if wanted
 	{
@@ -681,20 +669,11 @@ void CSnapshotStorage::Add(int Tick, int64_t Tagtime, size_t DataSize, const voi
 		pHolder->m_pAltSnap = nullptr;
 		pHolder->m_AltSnapSize = 0;
 	}
-
-	// link
-	pHolder->m_pNext = nullptr;
-	pHolder->m_pPrev = m_pLast;
-	if(m_pLast)
-		m_pLast->m_pNext = pHolder;
-	else
-		m_pFirst = pHolder;
-	m_pLast = pHolder;
 }
 
 int CSnapshotStorage::Get(int Tick, int64_t *pTagtime, const CSnapshot **ppData, const CSnapshot **ppAltData) const
 {
-	CHolder *pHolder = m_pFirst;
+	CHolder *pHolder = m_Holders.First();
 
 	while(pHolder)
 	{
@@ -709,7 +688,7 @@ int CSnapshotStorage::Get(int Tick, int64_t *pTagtime, const CSnapshot **ppData,
 			return pHolder->m_SnapSize;
 		}
 
-		pHolder = pHolder->m_pNext;
+		pHolder = m_Holders.Next(pHolder);
 	}
 
 	return -1;
